@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Guitar Smasher</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin:0; font-family:Arial,sans-serif; background:linear-gradient(to bottom,#111,#1e1e1e); color:white; text-align:center; }
+    h1 { margin:15px 0; color:#ff4d4d; text-shadow:0 0 10px red; }
+    #guitar { font-size:120px; cursor:pointer; user-select:none; transition:transform 0.1s, filter 0.3s; margin:20px 0; }
+    #guitar:active { transform:scale(1.1); }
+    #stats { margin-bottom:15px; font-size:18px; }
+    .panel { margin-top:20px; display:inline-block; text-align:left; width:320px; background:#222; padding:15px; border-radius:10px; margin-right:10px; vertical-align:top; }
+    .item { margin:10px 0; padding:8px; background:#333; border-radius:6px; }
+    button { width:100%; padding:6px; margin-top:5px; background:#ff4d4d; border:none; color:white; cursor:pointer; border-radius:5px; }
+    button:hover { background:#ff0000; }
+    .locked { opacity:0.4; }
+  </style>
+</head>
+<body>
+
+<h1>🎸 Guitar Smasher 🎸</h1>
+
+<div id="stats">
+  Smash Power: <span id="smash">0</span><br>
+  Smash Per Click: <span id="spc">1</span><br>
+  Smash Per Second: <span id="sps">0</span>
+</div>
+
+<div id="guitar">🎸</div>
+
+<div class="panel">
+  <h3>Skin Shop</h3>
+  <div class="item locked" id="skin1">🔥 Flame Guitar (10K)<button onclick="selectSkin(1)">Select</button></div>
+  <div class="item locked" id="skin2">⚡ Neon Guitar (1M)<button onclick="selectSkin(2)">Select</button></div>
+  <div class="item locked" id="skin3">👑 Golden Legend (1B)<button onclick="selectSkin(3)">Select</button></div>
+</div>
+
+<div class="panel">
+  <h3>Music Empire Shop</h3>
+  <div id="itemShop"></div>
+</div>
+
+<div style="margin-top:20px;">
+  <button onclick="saveGame()">💾 Save</button>
+  <button onclick="loadGame()">📂 Load</button>
+  <button onclick="resetGame()">🗑️ Reset</button>
+</div>
+
+<script>
+// ====== VARIABLES ======
+let smash=0, totalSmash=0, smashPerClick=1, smashPerSecond=0;
+let unlockedSkins={1:false,2:false,3:false}, selectedSkin=0;
+let achievements={a1:false,a2:false,a3:false,a4:false};
+let bossActive=false, bossHP=0, bossTimer=0;
+
+const smashDisplay=document.getElementById("smash");
+const spcDisplay=document.getElementById("spc");
+const spsDisplay=document.getElementById("sps");
+const guitar=document.getElementById("guitar");
+
+// ====== 15 ITEM SHOP ======
+const shopItems=[
+  {name:"Roadie", baseCost:15, sps:1, owned:0},
+  {name:"Garage Amp", baseCost:100, sps:5, owned:0},
+  {name:"Street Performer", baseCost:500, sps:20, owned:0},
+  {name:"Local Band", baseCost:1500, sps:60, owned:0},
+  {name:"Studio Producer", baseCost:5000, sps:150, owned:0},
+  {name:"Tour Bus", baseCost:20000, sps:500, owned:0},
+  {name:"Record Label", baseCost:75000, sps:1500, owned:0},
+  {name:"Stadium Show", baseCost:250000, sps:5000, owned:0},
+  {name:"World Tour", baseCost:1000000, sps:20000, owned:0},
+  {name:"Platinum Album", baseCost:5000000, sps:75000, owned:0},
+  {name:"Rock Festival", baseCost:20000000, sps:250000, owned:0},
+  {name:"Global Fanbase", baseCost:100000000, sps:1000000, owned:0},
+  {name:"Music Empire", baseCost:500000000, sps:5000000, owned:0},
+  {name:"Rock Dynasty", baseCost:2000000000, sps:20000000, owned:0},
+  {name:"Guitar God", baseCost:10000000000, sps:100000000, owned:0}
+];
+
+// ====== FORMAT NUMBERS ======
+function format(num){
+  if(num>=1e12) return (num/1e12).toFixed(2)+"T";
+  if(num>=1e9) return (num/1e9).toFixed(2)+"B";
+  if(num>=1e6) return (num/1e6).toFixed(2)+"M";
+  if(num>=1e3) return (num/1e3).toFixed(2)+"K";
+  return Math.floor(num);
+}
+
+// ====== UPDATE DISPLAY ======
+function updateDisplay(){
+  smashDisplay.textContent=format(smash);
+  spcDisplay.textContent=smashPerClick;
+  spsDisplay.textContent=smashPerSecond;
+  checkUnlocks();
+  checkAchievements();
+  generateShop();
+}
+
+// ====== SKINS ======
+function checkUnlocks(){
+  if(totalSmash>=10000) unlockSkin(1);
+  if(totalSmash>=1000000) unlockSkin(2);
+  if(totalSmash>=1000000000) unlockSkin(3);
+}
+function unlockSkin(id){ unlockedSkins[id]=true; document.getElementById("skin"+id).classList.remove("locked"); }
+function selectSkin(id){ if(!unlockedSkins[id]) return; selectedSkin=id; guitar.style.filter=""; if(id===1) guitar.style.filter="drop-shadow(0 0 15px orange)"; if(id===2) guitar.style.filter="drop-shadow(0 0 20px cyan)"; if(id===3) guitar.style.filter="drop-shadow(0 0 25px gold)"; }
+
+// ====== CLICKING ======
+guitar.onclick=function(){
+  if(bossActive){ bossHP-=smashPerClick; if(bossHP<=0) defeatBoss(); }
+  else{ smash+=smashPerClick; totalSmash+=smashPerClick; }
+  updateDisplay();
+}
+
+// ====== BUY ITEMS ======
+function buyItem(index){
+  const item=shopItems[index];
+  const cost=Math.floor(item.baseCost*Math.pow(1.15,item.owned));
+  if(smash>=cost){ smash-=cost; item.owned++; smashPerSecond+=item.sps; updateDisplay(); }
+}
+function generateShop(){
+  const shopDiv=document.getElementById("itemShop");
+  shopDiv.innerHTML="";
+  shopItems.forEach((item,index)=>{
+    const cost=Math.floor(item.baseCost*Math.pow(1.15,item.owned));
+    const div=document.createElement("div");
+    div.className="item";
+    div.innerHTML=`<strong>${item.name}</strong><br>Owned: ${item.owned}<br>+${format(item.sps)} SPS<br>Cost: ${format(cost)}<button onclick="buyItem(${index})">Buy</button>`;
+    shopDiv.appendChild(div);
+  });
+}
+
+// ====== BUY AUTO & CLICK ======
+function buyAuto(){ if(smash>=50){ smash-=50; smashPerSecond+=1; updateDisplay(); } }
+function buyClick(){ if(smash>=25){ smash-=25; smashPerClick+=1; updateDisplay(); } }
+
+// ====== ACHIEVEMENTS ======
+function checkAchievements(){
+  if(totalSmash>=1000&&!achievements.a1){ achievements.a1=true; alert("🏆 Garage Band!"); }
+  if(totalSmash>=100000&&!achievements.a2){ achievements.a2=true; alert("🏆 Stage Performer!"); }
+  if(totalSmash>=10000000&&!achievements.a3){ achievements.a3=true; alert("🏆 Rock Star!"); }
+  if(totalSmash>=1000000000&&!achievements.a4){ achievements.a4=true; alert("🏆 Legend!"); }
+}
+
+// ====== BOSS ======
+function spawnBoss(){ if(bossActive) return; bossActive=true; bossHP=smashPerSecond*20+smashPerClick*50+100; bossTimer=15; guitar.textContent="👹🎸"; alert("👹 BOSS GUITAR!"); }
+function defeatBoss(){ bossActive=false; const reward=bossHP*5; smash+=reward; totalSmash+=reward; guitar.textContent="🎸"; alert("🔥 Boss Defeated! +" + format(reward) + " Smash!"); }
+setInterval(()=>{ if(bossActive){ bossTimer--; if(bossTimer<=0){ bossActive=false; guitar.textContent="🎸"; alert("💀 Boss Escaped!"); } } },1000);
+setInterval(spawnBoss,60000);
+
+// ====== IDLE GENERATION ======
+setInterval(()=>{ smash+=smashPerSecond; totalSmash+=smashPerSecond; updateDisplay(); },1000);
+
+// ====== SAVE / LOAD ======
+function saveGame(){ localStorage.setItem("guitarSave",JSON.stringify({smash,totalSmash,smashPerClick,smashPerSecond,unlockedSkins,selectedSkin,achievements,shopItems,lastPlayed:Date.now()})); alert("Game Saved!"); }
+function loadGame(){
+  const save=JSON.parse(localStorage.getItem("guitarSave"));
+  if(!save) return;
+  smash=save.smash; totalSmash=save.totalSmash; smashPerClick=save.smashPerClick; smashPerSecond=0;
+  unlockedSkins=save.unlockedSkins||unlockedSkins; selectedSkin=save.selectedSkin||0; achievements=save.achievements||achievements;
+  if(save.shopItems) shopItems.forEach((item,i)=>{ item.owned=save.shopItems[i].owned; smashPerSecond+=item.owned*item.sps; });
+  if(save.lastPlayed){ const sec=Math.floor((Date.now()-save.lastPlayed)/1000); const offline=sec*smashPerSecond; smash+=offline; totalSmash+=offline; if(offline>0) alert("💰 Offline Earnings: "+format(offline)); }
+  for(let id in unlockedSkins) if(unlockedSkins[id]) unlockSkin(id);
+  if(selectedSkin) selectSkin(selectedSkin);
+  updateDisplay();
+}
+function resetGame(){ if(confirm("Delete progress?")){ localStorage.removeItem("guitarSave"); location.reload(); } }
+
+// ====== AUTO SAVE ======
+setInterval(saveGame,10000);
+
+// ====== INIT ======
+loadGame(); updateDisplay();
+</script>
+
+</body>
+</html>
